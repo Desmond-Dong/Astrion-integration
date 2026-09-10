@@ -508,7 +508,7 @@ Sanytron provides the product, documentation, software, community, and support e
   https://www.reddit.com/r/Sanytron/
 
 * 💬 **Discord** — Community support and development discussion
-  https://discord.gg/dh2sQrWTH
+  https://discord.gg/z629RRgHBJ
 
 ---
 
