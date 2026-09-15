@@ -42,6 +42,375 @@
       "no_drives_found": "No matching drivers found. Please go back and change library/device type/brand."
     }
   },
+  "config_subentries": {
+    "tv": {
+      "entry_type": "TV",
+      "error": {
+        "no_entities": "Select at least one control source: media player, IR remote or select entity."
+      },
+      "abort": {
+        "merged_into_existing": "This category already exists — the newly selected devices were merged into it."
+      },
+      "initiate_flow": {
+        "user": "Add TV"
+      },
+      "step": {
+        "user": {
+          "title": "Add TV",
+          "description": "Select the TV devices for this category (multiple allowed) and bind IR remotes and other control sources.",
+          "data": {
+            "devices": "TV devices (multiple, device names are used automatically)",
+            "tv_type": "Remote type",
+            "remote_version": "Remote hardware version",
+            "remote_entities": "IR remote entities (optional, multiple)",
+            "select_entities": "Select entities (optional, multiple)",
+            "background_path": "Background image path (optional)"
+          },
+          "errors": {
+            "no_entities": "Select at least one control source: media player, IR remote or select entity."
+          }
+        },
+        "reconfigure": {
+          "title": "Edit TV",
+          "description": "Edit the devices and key bindings of this category.",
+          "data": {
+            "devices": "TV devices (multiple, device names are used automatically)",
+            "tv_type": "Remote type",
+            "remote_version": "Remote hardware version",
+            "remote_entities": "IR remote entities (optional, multiple)",
+            "select_entities": "Select entities (optional, multiple)",
+            "background_path": "Background image path (optional)"
+          },
+          "errors": {
+            "no_entities": "Select at least one control source: media player, IR remote or select entity."
+          }
+        },
+        "controls": {
+          "title": "Power & volume control",
+          "description": "Bind power control and volume control mode. Media buttons and select option bindings appear based on the entities bound in step one.",
+          "data": {
+            "power_entity": "Power control remote entity (optional)",
+            "power_command": "Power command (optional): button name or IR code; empty = resolved from code library",
+            "volume_mode": "Volume control mode",
+            "volume_entity": "Volume entity (single media entity mode)",
+            "volume_up_entity": "Volume up entity (script/scene)",
+            "volume_down_entity": "Volume down entity (script/scene)",
+            "media_commands": "Media button bindings"
+          }
+        },
+        "keys": {
+          "title": "Physical key bindings",
+          "description": "The meaning of physical keys F4-F11 depends on the remote hardware version (HA100A: light/curtain/music/AC/custom 1-4; HA100B: rewind/play-pause/stop/fast-forward/custom 1-4).\n\nCommand semantics: Astrion remote = button name or IR code (empty = resolved from code library by button name); Broadlink = device/key; Harmony = activity/device name.",
+          "data": {
+            "F4_entity": "F4 bound entity (optional)",
+            "F4_command": "F4 command (optional)",
+            "F5_entity": "F5 bound entity (optional)",
+            "F5_command": "F5 command (optional)",
+            "F6_entity": "F6 bound entity (optional)",
+            "F6_command": "F6 command (optional)",
+            "F7_entity": "F7 bound entity (optional)",
+            "F7_command": "F7 command (optional)",
+            "F8_entity": "F8 bound entity (optional)",
+            "F8_command": "F8 command (optional)",
+            "F9_entity": "F9 bound entity (optional)",
+            "F9_command": "F9 command (optional)",
+            "F10_entity": "F10 bound entity (optional)",
+            "F10_command": "F10 command (optional)",
+            "F11_entity": "F11 bound entity (optional)",
+            "F11_command": "F11 command (optional)"
+          }
+        }
+      }
+    },
+    "media_player": {
+      "entry_type": "Media player",
+      "abort": {
+        "merged_into_existing": "This category already exists — the newly selected devices were merged into it."
+      },
+      "initiate_flow": {
+        "user": "Add media player"
+      },
+      "step": {
+        "user": {
+          "title": "Add media player",
+          "data": {
+            "devices": "Media player devices (multiple, names are used automatically)"
+          }
+        },
+        "reconfigure": {
+          "title": "Edit media player",
+          "data": {
+            "devices": "Media player devices (multiple, names are used automatically)"
+          }
+        }
+      }
+    },
+    "light": {
+      "entry_type": "Light",
+      "abort": {
+        "merged_into_existing": "This category already exists — the newly selected devices were merged into it."
+      },
+      "initiate_flow": {
+        "user": "Add light"
+      },
+      "step": {
+        "user": {
+          "title": "Add light",
+          "data": {
+            "devices": "Light devices (multiple, names are used automatically)"
+          }
+        },
+        "reconfigure": {
+          "title": "Edit light",
+          "data": {
+            "devices": "Light devices (multiple, names are used automatically)"
+          }
+        }
+      }
+    },
+    "fan": {
+      "entry_type": "Fan",
+      "abort": {
+        "merged_into_existing": "This category already exists — the newly selected devices were merged into it."
+      },
+      "initiate_flow": {
+        "user": "Add fan"
+      },
+      "step": {
+        "user": {
+          "title": "Add fan",
+          "data": {
+            "devices": "Fan devices (multiple, names are used automatically)"
+          }
+        },
+        "reconfigure": {
+          "title": "Edit fan",
+          "data": {
+            "devices": "Fan devices (multiple, names are used automatically)"
+          }
+        }
+      }
+    },
+    "climate": {
+      "entry_type": "Climate",
+      "abort": {
+        "merged_into_existing": "This category already exists — the newly selected devices were merged into it."
+      },
+      "initiate_flow": {
+        "user": "Add climate"
+      },
+      "step": {
+        "user": {
+          "title": "Add climate",
+          "data": {
+            "devices": "Climate devices (multiple, names are used automatically)"
+          }
+        },
+        "reconfigure": {
+          "title": "Edit climate",
+          "data": {
+            "devices": "Climate devices (multiple, names are used automatically)"
+          }
+        }
+      }
+    },
+    "cover": {
+      "entry_type": "Cover",
+      "abort": {
+        "merged_into_existing": "This category already exists — the newly selected devices were merged into it."
+      },
+      "initiate_flow": {
+        "user": "Add cover"
+      },
+      "step": {
+        "user": {
+          "title": "Add cover",
+          "data": {
+            "devices": "Cover devices (multiple, names are used automatically)",
+            "curtain_type": "Curtain interface type"
+          }
+        },
+        "reconfigure": {
+          "title": "Edit cover",
+          "data": {
+            "devices": "Cover devices (multiple, names are used automatically)",
+            "curtain_type": "Curtain interface type"
+          }
+        }
+      }
+    },
+    "switch": {
+      "entry_type": "Switch",
+      "abort": {
+        "merged_into_existing": "This category already exists — the newly selected devices were merged into it."
+      },
+      "initiate_flow": {
+        "user": "Add switch"
+      },
+      "step": {
+        "user": {
+          "title": "Add switch",
+          "data": {
+            "devices": "Switch devices (multiple, names are used automatically)"
+          }
+        },
+        "reconfigure": {
+          "title": "Edit switch",
+          "data": {
+            "devices": "Switch devices (multiple, names are used automatically)"
+          }
+        }
+      }
+    },
+    "scene": {
+      "entry_type": "Scene & script",
+      "abort": {
+        "merged_into_existing": "This category already exists — the newly selected devices were merged into it."
+      },
+      "initiate_flow": {
+        "user": "Add scene & script"
+      },
+      "step": {
+        "user": {
+          "title": "Add scene & script",
+          "data": {
+            "entities": "Scene or script entities (multiple, entity names are used automatically)",
+            "mode": "Execution mode",
+            "text_color": "Text color (e.g. #ffffff, optional)",
+            "image_path": "Row image path (optional)"
+          }
+        },
+        "reconfigure": {
+          "title": "Edit scene & script",
+          "data": {
+            "entities": "Scene or script entities (multiple, entity names are used automatically)",
+            "mode": "Execution mode",
+            "text_color": "Text color (e.g. #ffffff, optional)",
+            "image_path": "Row image path (optional)"
+          }
+        }
+      }
+    },
+    "weather": {
+      "entry_type": "Weather",
+      "abort": {
+        "merged_into_existing": "This category already exists — the newly selected devices were merged into it."
+      },
+      "initiate_flow": {
+        "user": "Add weather"
+      },
+      "step": {
+        "user": {
+          "title": "Add weather",
+          "data": {
+            "entities": "Weather entities (entity names are used automatically)"
+          }
+        },
+        "reconfigure": {
+          "title": "Edit weather",
+          "data": {
+            "entities": "Weather entities (entity names are used automatically)"
+          }
+        }
+      }
+    },
+    "host": {
+      "entry_type": "Host",
+      "abort": {
+        "merged_into_existing": "This category already exists — the newly selected devices were merged into it."
+      },
+      "initiate_flow": {
+        "user": "Add host"
+      },
+      "step": {
+        "user": {
+          "title": "Add host",
+          "data": {
+            "entities": "Entities to display"
+          }
+        },
+        "reconfigure": {
+          "title": "Edit host",
+          "data": {
+            "entities": "Entities to display"
+          }
+        }
+      }
+    },
+    "switch_monitor": {
+      "entry_type": "Switch monitor",
+      "abort": {
+        "merged_into_existing": "This category already exists — the newly selected devices were merged into it."
+      },
+      "initiate_flow": {
+        "user": "Add switch monitor"
+      },
+      "step": {
+        "user": {
+          "title": "Add switch monitor",
+          "data": {
+            "devices": "Switch devices (multiple, names are used automatically)",
+            "device_types": "Device types to monitor"
+          }
+        },
+        "reconfigure": {
+          "title": "Edit switch monitor",
+          "data": {
+            "devices": "Switch devices (multiple, names are used automatically)",
+            "device_types": "Device types to monitor"
+          }
+        }
+      }
+    }
+  },
+  "selector": {
+    "tv_type": {
+      "options": {
+        "android_tv": "Android TV",
+        "harmony": "Harmony",
+        "broadlink": "Broadlink"
+      }
+    },
+    "remote_version": {
+      "options": {
+        "x9": "X9",
+        "ha100a": "HA100A",
+        "ha100b": "HA100B"
+      }
+    },
+    "volume_mode": {
+      "options": {
+        "none": "None",
+        "single": "Single media entity",
+        "updown": "Volume up & down"
+      }
+    },
+    "media_command": {
+      "options": {
+        "turn_on": "Turn on",
+        "turn_off": "Turn off",
+        "media_play": "Play",
+        "media_pause": "Pause",
+        "volume_up": "Volume up",
+        "volume_down": "Volume down",
+        "volume_mute_true": "Mute",
+        "volume_mute_false": "Unmute"
+      }
+    },
+    "curtain_type": {
+      "options": {
+        "curtain": "Curtain",
+        "blind": "Blind"
+      }
+    },
+    "scene_mode": {
+      "options": {
+        "immediate": "Immediate",
+        "delayed": "Delayed",
+        "popup": "Popup ask"
+      }
+    }
+  },
   "entity": {
     "button": {
       "refresh": {

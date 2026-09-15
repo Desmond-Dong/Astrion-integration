@@ -1,6 +1,7 @@
 from homeassistant.core import HomeAssistant, ServiceCall, callback
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.helpers import storage, config_validation as cv
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceEntry
 from homeassistant.components import websocket_api
 import voluptuous as vol
@@ -96,6 +97,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     websocket_api.async_register_command(hass, websocket_get_device_codes)
     websocket_api.async_register_command(hass, websocket_get_harmony_config)
     websocket_api.async_register_command(hass, websocket_get_broadlink_codes)
+    websocket_api.async_register_command(hass, websocket_get_cards)
     _LOGGER.info("[Startup] WebSocket handlers registered successfully!")
 
     # 监听 APK 通过 fire_event 上报的导航列表
@@ -170,10 +172,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     websocket_api.async_register_command(hass, websocket_get_device_codes)
     websocket_api.async_register_command(hass, websocket_get_harmony_config)
     websocket_api.async_register_command(hass, websocket_get_broadlink_codes)
+    websocket_api.async_register_command(hass, websocket_get_cards)
 
     # 加载遥控器实体平台 + 网关场景选择器
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    
+
     # 注册红外服务
     hass.services.async_register(DOMAIN, "discover_all", handle_discover_all)
     hass.services.async_register(
@@ -183,6 +186,33 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             vol.Required("button"): cv.string,
         })
     )
+
+    # 卡片子条目（原 RosCard 卡片）变更时同步设备并通知 App 重新拉取
+    # 注意：update listener 必须是协程函数，HA 会把其返回值调度为任务
+    async def _notify_cards_updated(hass_: HomeAssistant, entry_: ConfigEntry) -> None:
+        _async_sync_category_devices(hass_, entry_)
+        ir_subentry_id = _async_ensure_ir_subentry(hass_, entry_)
+        if ir_subentry_id:
+            _async_sync_ir_devices(hass_, entry_, ir_subentry_id)
+        gateway_subentry_id = _async_ensure_gateway_subentry(hass_, entry_)
+        if gateway_subentry_id:
+            _async_attach_gateway_device(hass_, entry_, gateway_subentry_id)
+        hass_.bus.async_fire(f"{DOMAIN}/cards_updated", {"entry_id": entry_.entry_id})
+
+    entry.async_on_unload(entry.add_update_listener(_notify_cards_updated))
+
+    # 首次加载时同步一次分类设备
+    _async_sync_category_devices(hass, entry)
+
+    # 默认「红外」子条目：确保存在，并把红外设备归属到它下面
+    ir_subentry_id = _async_ensure_ir_subentry(hass, entry)
+    if ir_subentry_id:
+        _async_sync_ir_devices(hass, entry, ir_subentry_id)
+
+    # 默认「网关」子条目：网关设备本身也归组
+    gateway_subentry_id = _async_ensure_gateway_subentry(hass, entry)
+    if gateway_subentry_id:
+        _async_attach_gateway_device(hass, entry, gateway_subentry_id)
     return True
 
 # ====================== 2. 卸载与设备删除 ======================
@@ -196,7 +226,27 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_remove_config_entry_device(
     hass: HomeAssistant, config_entry: ConfigEntry, device_entry: DeviceEntry
 ) -> bool:
-    """允许在设备页面通过 UI 删除特定红外设备"""
+    """允许在设备页面通过 UI 删除红外设备 / 分类联动设备"""
+    # 分类联动设备（cat:<subentry_id>:<device_id>）：从 UI 删除 = 从分类中移除该设备
+    for ident_domain, ident_value in device_entry.identifiers:
+        if ident_domain == DOMAIN and ident_value.startswith(CATEGORY_DEVICE_PREFIX):
+            _, subentry_id, device_id = ident_value.split(":", 2)
+            subentry = config_entry.subentries.get(subentry_id)
+            bound = (subentry.data.get("devices") or []) if subentry else []
+            if subentry is not None and device_id in bound:
+                new_data = dict(subentry.data)
+                new_data["devices"] = [d for d in bound if d != device_id]
+                hass.config_entries.async_update_subentry(
+                    entry=config_entry, subentry=subentry, data=new_data
+                )
+                _LOGGER.info(
+                    "Category device %s removed from subentry %s via integration page",
+                    device_id,
+                    subentry_id,
+                )
+            # 设备已不在分类里时也允许删除（残留联动设备清理）
+            return True
+
     if DOMAIN not in hass.data or "library" not in hass.data[DOMAIN]:
         return False
     library = hass.data[DOMAIN]["library"]
@@ -523,4 +573,224 @@ async def websocket_get_broadlink_codes(hass: HomeAssistant, connection, msg):
             "source_file": source_file,
             "devices": devices,
         })
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{DOMAIN}/get_cards",
+    vol.Optional("entry_id"): cv.string,
+})
+@websocket_api.async_response
+async def websocket_get_cards(hass: HomeAssistant, connection, msg):
+    """App 拉取分类列表（原 RosCard 卡片配置，现在来自集成子条目）
+
+    每个 subentry = 遥控器上的一个分类，data.devices 为该分类下的 HA 设备。
+    本接口会把设备解析为分类对应域的实体列表（entities 字段）一并返回，
+    App 收到 astrion/cards_updated 事件后应重新调用本接口刷新 UI。
+    """
+    from homeassistant.helpers import device_registry as dr
+    from homeassistant.helpers import entity_registry as er
+    from .cards import CARD_DOMAINS, SUBENTRY_TYPE_IR, SUBENTRY_TYPE_GATEWAY
+
+    # 仅用于 HA 侧设备归组、不作为分类卡片下发的子条目类型
+    hidden_subentry_types = {SUBENTRY_TYPE_IR, SUBENTRY_TYPE_GATEWAY}
+
+    dev_reg = dr.async_get(hass)
+    ent_reg = er.async_get(hass)
+    cards = []
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        if msg.get("entry_id") and entry.entry_id != msg["entry_id"]:
+            continue
+        for subentry in entry.subentries.values():
+            if subentry.subentry_type in hidden_subentry_types:
+                # 红外子条目：红外设备走网关自有协议；
+                # 网关子条目：归属网关设备本身。均不作为分类卡片下发给 App
+                continue
+            config = dict(subentry.data)
+            card = {
+                "entry_id": entry.entry_id,
+                "subentry_id": subentry.subentry_id,
+                "card_type": subentry.subentry_type,
+                "title": subentry.title,
+                "config": config,
+            }
+            # 分类下的设备 → 解析为该分类域的实体，App 可直接渲染
+            device_ids = config.get("devices") or []
+            if device_ids:
+                domain = CARD_DOMAINS.get(subentry.subentry_type)
+                entity_ids = []
+                for device_id in device_ids:
+                    for ent in er.async_entries_for_device(ent_reg, device_id):
+                        if domain is not None and ent.domain == domain:
+                            entity_ids.append(ent.entity_id)
+                card["entities"] = entity_ids
+            cards.append(card)
+    connection.send_result(msg["id"], {"api_version": 1, "cards": cards})
+
+
+# ====================== 6. 分类设备同步（与红外设备相同的设备注册表机制） ======================
+
+# 分类联动设备标识前缀：cat:<subentry_id>:<device_id>
+CATEGORY_DEVICE_PREFIX = "cat:"
+
+
+@callback
+def _async_sync_category_devices(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """把分类子条目绑定的设备同步为真正的 HA 设备
+
+    与红外设备一样进设备注册表：挂在网关设备下（via_device），
+    并通过 config_subentry_id 归属到对应子条目，集成页面按分类分组展示。
+    用户在分类里增删设备 / 删除子条目后重新同步。
+    """
+    from .cards import CARD_TYPES, CARD_MODELS
+
+    dev_reg = dr.async_get(hass)
+    serial = entry.data.get("app_serial")
+
+    # 期望的设备集合：{(subentry_id, device_id): (显示名, 型号)}
+    wanted: dict[tuple[str, str], tuple[str, str]] = {}
+    for subentry in entry.subentries.values():
+        if subentry.subentry_type not in CARD_TYPES:
+            continue
+        model = CARD_MODELS.get(subentry.subentry_type, subentry.subentry_type)
+        for device_id in subentry.data.get("devices") or []:
+            source = dev_reg.async_get(device_id)
+            name = (source.name_by_user or source.name) if source else None
+            wanted[(subentry.subentry_id, device_id)] = (name or device_id, model)
+
+    # 现有的分类联动设备：{identifier: DeviceEntry}
+    existing: dict[str, DeviceEntry] = {}
+    for device in dr.async_entries_for_config_entry(dev_reg, entry.entry_id):
+        for domain, value in device.identifiers:
+            if domain == DOMAIN and value.startswith(CATEGORY_DEVICE_PREFIX):
+                existing[value] = device
+
+    # 创建缺失的，并刷新名称/型号（用户手动改名过的设备 HA 会保留 name_by_user）
+    for (subentry_id, device_id), (name, model) in wanted.items():
+        identifier = f"{CATEGORY_DEVICE_PREFIX}{subentry_id}:{device_id}"
+        if identifier in existing:
+            continue
+        kwargs: dict = {
+            "config_entry_id": entry.entry_id,
+            "config_subentry_id": subentry_id,
+            "identifiers": {(DOMAIN, identifier)},
+            "name": name,
+            "manufacturer": "Astrion",
+            "model": model,
+        }
+        if serial:
+            kwargs["via_device"] = (DOMAIN, serial)
+        dev_reg.async_get_or_create(**kwargs)
+        _LOGGER.info("Category device created: %s (%s) in subentry %s", name, model, subentry_id)
+
+    # 名称变化同步到已存在的设备
+    for (subentry_id, device_id), (name, model) in wanted.items():
+        identifier = f"{CATEGORY_DEVICE_PREFIX}{subentry_id}:{device_id}"
+        device = existing.get(identifier)
+        if device is None:
+            continue
+        updates: dict = {}
+        if not device.name_by_user and device.name != name:
+            updates["name"] = name
+        if device.model != model:
+            updates["model"] = model
+        if updates:
+            dev_reg.async_update_device(device.id, **updates)
+
+    # 清理已不在任何分类里的联动设备
+    valid_identifiers = {
+        f"{CATEGORY_DEVICE_PREFIX}{subentry_id}:{device_id}"
+        for subentry_id, device_id in wanted
+    }
+    for identifier, device in existing.items():
+        if identifier not in valid_identifiers:
+            dev_reg.async_remove_device(device.id)
+            _LOGGER.info("Category device removed: %s", identifier)
+
+
+# ====================== 7. 默认「红外」子条目（红外设备的归组分） ======================
+
+
+@callback
+def _async_ensure_ir_subentry(hass: HomeAssistant, entry: ConfigEntry) -> str | None:
+    """确保网关条目下存在默认「红外」子条目，返回其 subentry_id
+
+    配对流程会随条目一起创建；老用户升级后首次加载时在这里补建，
+    保证红外设备始终有归组分，不会"不属于任何分组"。
+    """
+    from .cards import SUBENTRY_TYPE_IR, category_label
+
+    for subentry in entry.subentries.values():
+        if subentry.subentry_type == SUBENTRY_TYPE_IR:
+            return subentry.subentry_id
+
+    subentry = ConfigSubentry(
+        data={},
+        subentry_type=SUBENTRY_TYPE_IR,
+        title=category_label(hass, SUBENTRY_TYPE_IR),
+        unique_id=None,
+    )
+    hass.config_entries.async_add_subentry(entry, subentry)
+    _LOGGER.info(
+        "Default IR subentry created for gateway %s", entry.data.get("app_serial")
+    )
+    return subentry.subentry_id
+
+
+@callback
+def _async_sync_ir_devices(hass: HomeAssistant, entry: ConfigEntry, ir_subentry_id: str) -> None:
+    """把本网关的红外设备挂到默认「红外」子条目下
+
+    只处理尚未归属任何子条目的设备，用户手动调整过分组的不动。
+    """
+    library = (hass.data.get(DOMAIN, {}).get("library") or {})
+    devices = library.get("devices") or {}
+    serial = entry.data.get("app_serial")
+    if not serial:
+        return
+    dev_reg = dr.async_get(hass)
+    for device_serial, info in devices.items():
+        if info.get("parent_app_serial") != serial:
+            continue
+        # 红外设备的注册表 device_id 是 ULID，需按 identifiers（DOMAIN, 序列号）查找
+        device = dev_reg.async_get_device(identifiers={(DOMAIN, device_serial)})
+        if device is None or device.config_subentry_id:
+            continue
+        dev_reg.async_update_device(device.id, add_config_subentry_id=ir_subentry_id)
+        _LOGGER.info("IR device %s attached to default IR subentry", device_serial)
+
+
+@callback
+def _async_ensure_gateway_subentry(hass: HomeAssistant, entry: ConfigEntry) -> str | None:
+    """确保网关条目下存在默认「网关」子条目，返回其 subentry_id
+
+    网关设备上挂着导航事件/导航动作/数据同步等功能实体，
+    归组后用户能在集成页面直接找到它们。
+    """
+    from .cards import SUBENTRY_TYPE_GATEWAY, category_label
+
+    for subentry in entry.subentries.values():
+        if subentry.subentry_type == SUBENTRY_TYPE_GATEWAY:
+            return subentry.subentry_id
+
+    subentry = ConfigSubentry(
+        data={},
+        subentry_type=SUBENTRY_TYPE_GATEWAY,
+        title=category_label(hass, SUBENTRY_TYPE_GATEWAY),
+        unique_id=None,
+    )
+    hass.config_entries.async_add_subentry(entry, subentry)
+    return subentry.subentry_id
+
+
+@callback
+def _async_attach_gateway_device(hass: HomeAssistant, entry: ConfigEntry, gateway_subentry_id: str) -> None:
+    """把网关设备本身挂到默认「网关」子条目下（已归属的不动）"""
+    serial = entry.data.get("app_serial")
+    if not serial:
+        return
+    dev_reg = dr.async_get(hass)
+    device = dev_reg.async_get_device(identifiers={(DOMAIN, serial)})
+    if device is None or device.config_subentry_id:
+        return
+    dev_reg.async_update_device(device.id, add_config_subentry_id=gateway_subentry_id)
 

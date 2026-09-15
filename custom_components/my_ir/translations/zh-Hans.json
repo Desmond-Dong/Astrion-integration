@@ -14,7 +14,7 @@
       "single_instance_allowed": "已存在一个 My IR Remote 集成。\n\n请直接使用现有集成，无需重复添加。",
       "pair_initiated": "配对请求已发送！\n\n所有在线 Smart Remote App 将自动上报设备。",
       "cloud_fetch_failed": "无法连接到红外驱动库API，请检查网络或服务是否正常运行。",
-      "not_paired_yet" :"网关未就绪！\n\n请先确保您的 遥控器 已经配对成功，然后再为该网关添加红外子设备。"
+      "not_paired_yet": "网关未就绪！\n\n请先确保您的 遥控器 已经配对成功，然后再为该网关添加红外子设备。"
     }
   },
   "options": {
@@ -40,6 +40,375 @@
       "cloud_fetch_failed": "无法连接到红外驱动库API，请检查网络或服务是否正常运行。",
       "not_paired_yet": "网关未就绪！\n\n请先确保您的 遥控器已经配对成功，然后再为该网关添加红外子设备。",
       "no_drives_found": "未找到匹配的驱动，请返回重新选择库/设备类型/品牌。"
+    }
+  },
+  "config_subentries": {
+    "tv": {
+      "entry_type": "TV",
+      "error": {
+        "no_entities": "请至少选择一个控制来源：媒体播放器、红外遥控器或选择器实体。"
+      },
+      "abort": {
+        "merged_into_existing": "该分类已存在，新选的设备已并入现有分类。"
+      },
+      "initiate_flow": {
+        "user": "添加 TV"
+      },
+      "step": {
+        "user": {
+          "title": "添加 TV",
+          "description": "选择要加入 TV 分类的电视设备（可多选），并绑定红外遥控器等控制来源。",
+          "data": {
+            "devices": "电视设备（可多选，自动使用设备名称）",
+            "tv_type": "遥控类型",
+            "remote_version": "遥控器硬件版本",
+            "remote_entities": "红外遥控器实体（可选，可多选）",
+            "select_entities": "选择器实体（可选，可多选）",
+            "background_path": "背景图片地址（可选）"
+          },
+          "errors": {
+            "no_entities": "请至少选择一个控制来源：媒体播放器、红外遥控器或选择器实体。"
+          }
+        },
+        "reconfigure": {
+          "title": "编辑 TV",
+          "description": "修改该分类的设备与按键绑定。",
+          "data": {
+            "devices": "电视设备（可多选，自动使用设备名称）",
+            "tv_type": "遥控类型",
+            "remote_version": "遥控器硬件版本",
+            "remote_entities": "红外遥控器实体（可选，可多选）",
+            "select_entities": "选择器实体（可选，可多选）",
+            "background_path": "背景图片地址（可选）"
+          },
+          "errors": {
+            "no_entities": "请至少选择一个控制来源：媒体播放器、红外遥控器或选择器实体。"
+          }
+        },
+        "controls": {
+          "title": "电源与音量控制",
+          "description": "绑定电源控制和音量控制方式。媒体按键和 select 选项绑定会按第一步绑定的实体自动出现。",
+          "data": {
+            "power_entity": "电源控制遥控器实体（可选）",
+            "power_command": "电源指令（可选）：按键名或红外码，留空按码库解析",
+            "volume_mode": "音量控制方式",
+            "volume_entity": "音量实体（单媒体实体模式）",
+            "volume_up_entity": "音量加 实体（脚本/场景）",
+            "volume_down_entity": "音量减 实体（脚本/场景）",
+            "media_commands": "媒体按键绑定"
+          }
+        },
+        "keys": {
+          "title": "物理按键绑定",
+          "description": "F4-F11 物理按键的含义随遥控器硬件版本不同（HA100A：灯/窗帘/音乐/空调/自定义1-4；HA100B：快退/播放暂停/停止/快进/自定义1-4）。\n\n指令说明：普通遥控器 = 按键名或红外码（留空按码库按键名解析）；博联 = 设备名/按键名；Harmony = 活动/设备名。",
+          "data": {
+            "F4_entity": "F4 绑定实体（可选）",
+            "F4_command": "F4 指令（可选）",
+            "F5_entity": "F5 绑定实体（可选）",
+            "F5_command": "F5 指令（可选）",
+            "F6_entity": "F6 绑定实体（可选）",
+            "F6_command": "F6 指令（可选）",
+            "F7_entity": "F7 绑定实体（可选）",
+            "F7_command": "F7 指令（可选）",
+            "F8_entity": "F8 绑定实体（可选）",
+            "F8_command": "F8 指令（可选）",
+            "F9_entity": "F9 绑定实体（可选）",
+            "F9_command": "F9 指令（可选）",
+            "F10_entity": "F10 绑定实体（可选）",
+            "F10_command": "F10 指令（可选）",
+            "F11_entity": "F11 绑定实体（可选）",
+            "F11_command": "F11 指令（可选）"
+          }
+        }
+      }
+    },
+    "media_player": {
+      "entry_type": "媒体播放器",
+      "abort": {
+        "merged_into_existing": "该分类已存在，新选的设备已并入现有分类。"
+      },
+      "initiate_flow": {
+        "user": "添加媒体播放器"
+      },
+      "step": {
+        "user": {
+          "title": "添加媒体播放器",
+          "data": {
+            "devices": "媒体播放器设备（可多选，自动使用设备名称）"
+          }
+        },
+        "reconfigure": {
+          "title": "编辑媒体播放器",
+          "data": {
+            "devices": "媒体播放器设备（可多选，自动使用设备名称）"
+          }
+        }
+      }
+    },
+    "light": {
+      "entry_type": "灯光",
+      "abort": {
+        "merged_into_existing": "该分类已存在，新选的设备已并入现有分类。"
+      },
+      "initiate_flow": {
+        "user": "添加灯光"
+      },
+      "step": {
+        "user": {
+          "title": "添加灯光",
+          "data": {
+            "devices": "灯光设备（可多选，自动使用设备名称）"
+          }
+        },
+        "reconfigure": {
+          "title": "编辑灯光",
+          "data": {
+            "devices": "灯光设备（可多选，自动使用设备名称）"
+          }
+        }
+      }
+    },
+    "fan": {
+      "entry_type": "风扇",
+      "abort": {
+        "merged_into_existing": "该分类已存在，新选的设备已并入现有分类。"
+      },
+      "initiate_flow": {
+        "user": "添加风扇"
+      },
+      "step": {
+        "user": {
+          "title": "添加风扇",
+          "data": {
+            "devices": "风扇设备（可多选，自动使用设备名称）"
+          }
+        },
+        "reconfigure": {
+          "title": "编辑风扇",
+          "data": {
+            "devices": "风扇设备（可多选，自动使用设备名称）"
+          }
+        }
+      }
+    },
+    "climate": {
+      "entry_type": "温控",
+      "abort": {
+        "merged_into_existing": "该分类已存在，新选的设备已并入现有分类。"
+      },
+      "initiate_flow": {
+        "user": "添加温控"
+      },
+      "step": {
+        "user": {
+          "title": "添加温控",
+          "data": {
+            "devices": "温控设备（可多选，自动使用设备名称）"
+          }
+        },
+        "reconfigure": {
+          "title": "编辑温控",
+          "data": {
+            "devices": "温控设备（可多选，自动使用设备名称）"
+          }
+        }
+      }
+    },
+    "cover": {
+      "entry_type": "窗帘",
+      "abort": {
+        "merged_into_existing": "该分类已存在，新选的设备已并入现有分类。"
+      },
+      "initiate_flow": {
+        "user": "添加窗帘"
+      },
+      "step": {
+        "user": {
+          "title": "添加窗帘",
+          "data": {
+            "devices": "窗帘设备（可多选，自动使用设备名称）",
+            "curtain_type": "窗帘接口类型"
+          }
+        },
+        "reconfigure": {
+          "title": "编辑窗帘",
+          "data": {
+            "devices": "窗帘设备（可多选，自动使用设备名称）",
+            "curtain_type": "窗帘接口类型"
+          }
+        }
+      }
+    },
+    "switch": {
+      "entry_type": "开关",
+      "abort": {
+        "merged_into_existing": "该分类已存在，新选的设备已并入现有分类。"
+      },
+      "initiate_flow": {
+        "user": "添加开关"
+      },
+      "step": {
+        "user": {
+          "title": "添加开关",
+          "data": {
+            "devices": "开关设备（可多选，自动使用设备名称）"
+          }
+        },
+        "reconfigure": {
+          "title": "编辑开关",
+          "data": {
+            "devices": "开关设备（可多选，自动使用设备名称）"
+          }
+        }
+      }
+    },
+    "scene": {
+      "entry_type": "场景/脚本",
+      "abort": {
+        "merged_into_existing": "该分类已存在，新选的设备已并入现有分类。"
+      },
+      "initiate_flow": {
+        "user": "添加场景/脚本"
+      },
+      "step": {
+        "user": {
+          "title": "添加场景/脚本",
+          "data": {
+            "entities": "场景或脚本实体（可多选，自动使用实体名称）",
+            "mode": "执行方式",
+            "text_color": "文字颜色（如 #ffffff，可选）",
+            "image_path": "行背景图片地址（可选）"
+          }
+        },
+        "reconfigure": {
+          "title": "编辑场景/脚本",
+          "data": {
+            "entities": "场景或脚本实体（可多选，自动使用实体名称）",
+            "mode": "执行方式",
+            "text_color": "文字颜色（如 #ffffff，可选）",
+            "image_path": "行背景图片地址（可选）"
+          }
+        }
+      }
+    },
+    "weather": {
+      "entry_type": "天气",
+      "abort": {
+        "merged_into_existing": "该分类已存在，新选的设备已并入现有分类。"
+      },
+      "initiate_flow": {
+        "user": "添加天气"
+      },
+      "step": {
+        "user": {
+          "title": "添加天气",
+          "data": {
+            "entities": "天气实体（自动使用实体名称）"
+          }
+        },
+        "reconfigure": {
+          "title": "编辑天气",
+          "data": {
+            "entities": "天气实体（自动使用实体名称）"
+          }
+        }
+      }
+    },
+    "host": {
+      "entry_type": "主机",
+      "abort": {
+        "merged_into_existing": "该分类已存在，新选的设备已并入现有分类。"
+      },
+      "initiate_flow": {
+        "user": "添加主机"
+      },
+      "step": {
+        "user": {
+          "title": "添加主机",
+          "data": {
+            "entities": "要展示的实体"
+          }
+        },
+        "reconfigure": {
+          "title": "编辑主机",
+          "data": {
+            "entities": "要展示的实体"
+          }
+        }
+      }
+    },
+    "switch_monitor": {
+      "entry_type": "开关监控",
+      "abort": {
+        "merged_into_existing": "该分类已存在，新选的设备已并入现有分类。"
+      },
+      "initiate_flow": {
+        "user": "添加开关监控"
+      },
+      "step": {
+        "user": {
+          "title": "添加开关监控",
+          "data": {
+            "devices": "开关设备（可多选，自动使用设备名称）",
+            "device_types": "要监控的设备类型"
+          }
+        },
+        "reconfigure": {
+          "title": "编辑开关监控",
+          "data": {
+            "devices": "开关设备（可多选，自动使用设备名称）",
+            "device_types": "要监控的设备类型"
+          }
+        }
+      }
+    }
+  },
+  "selector": {
+    "tv_type": {
+      "options": {
+        "android_tv": "Android 电视",
+        "harmony": "Harmony",
+        "broadlink": "博联"
+      }
+    },
+    "remote_version": {
+      "options": {
+        "x9": "X9",
+        "ha100a": "HA100A",
+        "ha100b": "HA100B"
+      }
+    },
+    "volume_mode": {
+      "options": {
+        "none": "不绑定",
+        "single": "单媒体实体",
+        "updown": "音量加和减"
+      }
+    },
+    "media_command": {
+      "options": {
+        "turn_on": "打开",
+        "turn_off": "关闭",
+        "media_play": "播放",
+        "media_pause": "暂停",
+        "volume_up": "音量增加",
+        "volume_down": "音量减少",
+        "volume_mute_true": "静音",
+        "volume_mute_false": "取消静音"
+      }
+    },
+    "curtain_type": {
+      "options": {
+        "curtain": "普通窗帘",
+        "blind": "百叶窗"
+      }
+    },
+    "scene_mode": {
+      "options": {
+        "immediate": "立即执行",
+        "delayed": "延迟执行",
+        "popup": "弹窗询问"
+      }
     }
   },
   "entity": {

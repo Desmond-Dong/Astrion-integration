@@ -14,11 +14,11 @@
 
 Astrion Home connects an **Astrion Remote Gateway** to Home Assistant and exposes Astrion's infrared capabilities for use in Home Assistant workflows and Astrion interfaces.
 
-Astrion Home is one component of the broader Astrion software ecosystem and works alongside **RosCard**, which provides the remote-facing interaction layer for Home Assistant.
+Astrion Home is one component of the broader Astrion software ecosystem.
 
-> **Astrion Home and RosCard serve different roles.**
-> **Astrion Home** provides the Home Assistant-side IR integration and gateway connection.
-> **RosCard** provides the interface layer that turns Home Assistant entities, states, and functions into a purpose-built Astrion experience.
+> **Since v2.0.0, Astrion Home no longer depends on RosCard.**
+> The remote-facing UI cards formerly provided by RosCard are now built into Astrion Home as **configuration subentries**, added directly from the Home Assistant integrations page.
+> RosCard is deprecated and no longer required.
 
 ---
 
@@ -28,12 +28,11 @@ Astrion is built around a simple principle:
 
 > **Home Assistant = Brain**
 > **Astrion = Physical Interface**
-> **Astrion Home = IR Integration**
-> **RosCard = Interaction Layer**
+> **Astrion Home = IR Integration + Remote UI Cards**
 
 Home Assistant remains the source of truth for device states, services, scenes, scripts, and automations.
 
-Astrion Home provides the Home Assistant-side connection for Astrion's IR capabilities. RosCard provides the remote-oriented interface through which relevant Home Assistant entities and functions can be presented on Astrion.
+Astrion Home provides the Home Assistant-side connection for Astrion's IR capabilities and manages the remote UI cards as configuration subentries. The Astrion remote pulls the card list from Astrion Home and renders its purpose-built interface.
 
 ```text
                          HOME ASSISTANT
@@ -47,41 +46,37 @@ Astrion Home provides the Home Assistant-side connection for Astrion's IR capabi
                   │          🧠 BRAIN         │
                   └────────────┬─────────────┘
                                │
-               ┌───────────────┴────────────────┐
-               │                                │
-               ▼                                ▼
-      ┌───────────────────────┐              ┌─────────────────┐
-      │   Astrion Home        │              │     RosCard     │
-      │ Button event report   │              │                 │
-      │ IR Gateway            │              │ Entity Mapping  │
-      │ IR Integration        │              │ State Sync      │
-      │ IR Capabilities       │              │ Remote UI       │
-      └────────┬──────────────┘              └────────┬────────┘
-               │                                │
-               └────────────────┬───────────────┘
-                                ▼
-                         ┌──────────────┐
-                         │   ASTRION    │
-                         │              │
-                         │ Touchscreen  │
-                         │ Buttons      │
-                         │ Local IR     │
-                         └──────────────┘
+                               ▼
+                  ┌───────────────────────┐
+                  │     Astrion Home      │
+                  │ IR Gateway            │
+                  │ IR Integration        │
+                  │ IR Capabilities       │
+                  │ Remote UI Cards       │
+                  │  (config subentries)  │
+                  └────────┬──────────────┘
+                           │
+                           ▼
+                    ┌──────────────┐
+                    │   ASTRION    │
+                    │              │
+                    │ Touchscreen  │
+                    │ Buttons      │
+                    │ Local IR     │
+                    └──────────────┘
 ```
 
 ### Astrion Home
 
 **Astrion Home** is the Home Assistant integration associated with Astrion's local infrared capabilities.
 
-It provides the Astrion Remote Gateway connection and exposes IR-related capabilities that can be used inside Home Assistant.
+It provides the Astrion Remote Gateway connection, exposes IR-related capabilities that can be used inside Home Assistant, and manages the cards shown on the Astrion remote as integration subentries.
 
-### RosCard
+### Remote UI Cards
 
-**RosCard** is the interaction layer designed specifically for Astrion and Home Assistant.
+The cards displayed on the Astrion remote (TV, media player, lights, climate, scenes, and more) are configured in Home Assistant as **subentries** of the Astrion Home integration.
 
-It maps selected Home Assistant entities and functions into a remote-oriented interface designed for Astrion's 3.1-inch touchscreen and physical controls.
-
-This means Astrion does not need to reproduce an entire Home Assistant dashboard. Instead, RosCard can selectively expose what is relevant to the current task.
+Each card is added individually from the integration page, and the configuration is delivered to the Astrion remote over the local API. No Lovelace dashboard and no external card package is required.
 
 ---
 
@@ -146,51 +141,79 @@ The automation and orchestration logic remains in Home Assistant.
 
 ---
 
-## 🎨 Astrion Home + RosCard
+## 🎛️ Remote UI Categories (Subentries)
 
-Astrion Home and RosCard are complementary components.
+The remote UI is organized as categories (TV, lights, climate, scenes, …), managed as subentries of the Astrion Home integration.
 
-A simplified model is:
+To add a category:
 
 ```text
-                    HOME ASSISTANT
-                           │
-              ┌────────────┴────────────┐
-              │                         │
-              ▼                         ▼
-       Astrion Home                 HA Entities
-       IR / Gateway                      │
-              │                          │
-              │                          ▼
-              │                        RosCard
-              │                   Filter / Map / Sync
-              │                          │
-              └──────────────┬───────────┘
-                             ▼
-                           ASTRION
-                    ┌────────┼─────────┐
-                    ▼        ▼         ▼
-                 Touch    Buttons      IR
+Home Assistant
+      │
+      ▼
+Settings
+      │
+      ▼
+Devices & services
+      │
+      ▼
+Astrion Home
+      │
+      ▼
+Add subentry
+      │
+      ▼
+Select category
+      │
+      ▼
+Select devices
 ```
 
-The two components solve different problems:
+Each category has exactly **one** subentry per gateway. Adding the same category again simply merges the newly selected devices into the existing one — devices can also be added or removed anytime via the subentry's *Reconfigure* option. The subentry is named after the category (e.g. *Light*, *TV*), and every device added to it is registered as a real Home Assistant device under the Astrion integration — linked to the gateway and grouped under its category subentry, so the whole remote configuration is visible and manageable from the devices & services page.
 
-| Component          | Primary role                                                                      |
-| ------------------ | --------------------------------------------------------------------------------- |
-| **Astrion Home**   | Home Assistant integration for Astrion IR capabilities and Remote Gateway         |
-| **RosCard**        | Remote-facing interaction layer for Home Assistant entities, states, and controls |
-| **Astrion**        | Physical interface: touchscreen, physical buttons, and local IR                   |
-| **Home Assistant** | Automation, orchestration, device states, services, scenes, and scripts           |
+When the gateway is paired, two default subentries are created automatically: **Infrared** (all IR devices from the code library are grouped under it) and **Gateway** (the gateway device itself, which hosts the navigation controls and the data-sync button) — no device is ever left ungrouped.
 
-This separation is intentional.
+The following categories are available:
 
-A Home Assistant installation can contain a very large number of entities, dashboards, views, and automations. A physical remote should not simply mirror all of that complexity onto a 3.1-inch display.
+| Category         | Purpose                                                        |
+| ---------------- | -------------------------------------------------------------- |
+| **TV**           | Bind TV devices to their IR remote control sources, bind power/volume controls, and bind each physical key (F4–F11) to a remote, Broadlink device/key, or Harmony activity |
+| **Media player** | Playback control for media players (Apple TV, Android TV, …)   |
+| **Light**        | On/off, brightness, color, and color temperature               |
+| **Fan**          | Fan speed and state control                                    |
+| **Climate**      | Target temperature, HVAC modes, fan modes, and presets         |
+| **Cover**        | Curtains and blinds, including the curtain interface type      |
+| **Switch**       | Switch state control                                           |
+| **Scene & script** | Trigger scenes and scripts with immediate/delayed/popup mode |
+| **Weather**      | Weather display                                                |
+| **Host**         | General information display                                    |
+| **Switch monitor** | Monitor switch states grouped by device type                 |
 
-RosCard instead provides a focused interface for the things that matter in a physical-control context.
+Categories can be reconfigured or removed at any time from the same integration page. When the configuration changes, Astrion Home notifies the Astrion remote, which refreshes its interface automatically.
 
-Learn more about RosCard:
+> **APK integration:** the Astrion remote fetches categories and devices over WebSocket via `astrion/get_cards` and listens for `astrion/cards_updated`. See [docs/apk_api.md](docs/apk_api.md) for the full API contract.
 
-https://github.com/yyqclhy/RosCard
+### Migrating from RosCard
+
+RosCard is deprecated. Its functionality is now built into Astrion Home.
+
+If you previously configured RosCard cards on a Lovelace dashboard:
+
+1. Update Astrion Home to v2.0.0 or newer.
+2. Re-create each RosCard card as a subentry (see above) — the available card types and options mirror the former RosCard cards.
+3. Remove the RosCard resource and the RosCard dashboard cards when done.
+
+The configuration uses the same fields as the former RosCard cards (entities, TV type, execution mode, text color, curtain type, …), so it carries over directly. Devices are bound instead of individual entities, and names are taken automatically from the friendly names.
+
+### TV Category Bindings
+
+The TV category is configured in three steps:
+
+1. **Devices** — select the TV devices (media players) and bind IR remote entities and select entities as control sources.
+2. **Power & volume** — bind the power control (remote entity + command), choose the volume control mode (single media entity, or separate volume up/down bound to scripts or scenes), bind media buttons (play, pause, volume, mute, …), and bind select entity buttons to options (e.g. HDMI inputs).
+3. **Physical keys** — bind each physical key (F4–F11) to a remote entity and command. Key meanings follow the remote hardware version (X9 / HA100A / HA100B), and commands support Astrion IR remotes (button name or IR code, resolved from the code library when left empty), Broadlink devices (`device/key`), and Harmony activities.
+
+All bindings are stored with the category and delivered to the Astrion remote, replacing the equivalent RosCard TV card configuration.
 
 ---
 
@@ -415,9 +438,9 @@ Astrion does not attempt to replace Home Assistant as the automation engine.
 
 ### Physical Interface Instead of Dashboard Mirroring
 
-RosCard does not simply reproduce the entire Home Assistant dashboard on Astrion.
+Astrion card subentries do not simply reproduce the entire Home Assistant dashboard on Astrion.
 
-Instead, it selectively presents the functions and information that make sense for a physical remote interface.
+Instead, they selectively present the functions and information that make sense for a physical remote interface.
 
 ### Physical + Digital Control
 
@@ -433,7 +456,7 @@ This allows modern smart-home devices and traditional AV equipment to coexist wi
 
 ### State-Aware Interaction
 
-When supported by the relevant Home Assistant entities and RosCard interfaces, Astrion can react to device states instead of relying only on static commands.
+When supported by the relevant Home Assistant entities and Astrion interfaces, Astrion can react to device states instead of relying only on static commands.
 
 ---
 
@@ -472,7 +495,7 @@ We have seen users experiment with:
 * APK modifications
 * UI changes
 * Button mappings
-* RosCard configurations
+* Card configurations
 * Custom integrations
 * Automation workflows
 * Alternative interaction models
@@ -532,7 +555,7 @@ The relationship can be viewed as:
              ┌─────────┼─────────┐
              │         │         │
              ▼         ▼         ▼
-          Astrion    RosCard   Community
+          Astrion    Community
              │
              ▼
        Physical Interface
@@ -548,9 +571,11 @@ https://github.com/Qinkunex
 
 ## 🔗 Related Projects
 
-### RosCard
+### RosCard (Deprecated)
 
-**RosCard** is the interaction layer designed for Astrion and Home Assistant.
+**RosCard** was the former interaction layer for Astrion and Home Assistant.
+
+It is deprecated as of Astrion Home v2.0.0 — its functionality is now built into Astrion Home as card subentries. See [Migrating from RosCard](#migrating-from-roscard).
 
 https://github.com/yyqclhy/RosCard
 

@@ -13,3 +13,6 @@ data/flipper_tlv_compiler.py
 data/firemote_device_database_v3.json
 data/encrypt_ir_to_db.py
 data/upload_ir_database.py
+
+__pycache__/
+*.pyc

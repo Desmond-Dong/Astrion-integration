@@ -1,9 +1,19 @@
 ﻿from homeassistant import config_entries
+from homeassistant.config_entries import ConfigSubentryFlow
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.core import callback
 import voluptuous as vol
 from .const import DOMAIN
+from .cards import (
+    CARD_TV,
+    CARD_TYPES,
+    OWNED_KEYS,
+    SUBENTRY_TYPE_IR,
+    SUBENTRY_TYPE_GATEWAY,
+    category_label,
+    merge_into_existing,
+)
 from homeassistant.helpers import selector
 import logging
 import json
@@ -24,6 +34,14 @@ class MyIRConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def async_get_options_flow(config_entry):
         """启用选项流，并在集成卡片上显示‘配置’按钮"""
         return MyIROptionsFlowHandler(config_entry)
+
+    @classmethod
+    @callback
+    def async_get_supported_subentry_types(
+        cls, config_entry: config_entries.ConfigEntry
+    ) -> dict[str, type[ConfigSubentryFlow]]:
+        """集成页面「添加子条目」— 每种原 RosCard 卡片一个子条目类型"""
+        return SUBENTRY_HANDLERS
 
     async def async_step_user(self, user_input: dict | None = None) -> FlowResult:
         """点击集成名称即发送配对请求，无需中间表单"""
@@ -69,13 +87,28 @@ class MyIRConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if selected_serial and selected_serial in discovered:
                 gw_data = discovered[selected_serial]
                 model = gw_data.get("model", "IR Gateway")
-                # 创建条目，填入 App 信息
+                # 创建条目，填入 App 信息；同时创建默认「红外」「网关」子条目，
+                # 让所有设备从一开始就有归组分
                 return self.async_create_entry(
                     title=f"Smart Remote:{model} SN:{selected_serial}",
                     data={
                         "app_serial": selected_serial,
                         "app_model": model
-                    }
+                    },
+                    subentries=[
+                        {
+                            "subentry_type": SUBENTRY_TYPE_IR,
+                            "data": {},
+                            "title": category_label(self.hass, SUBENTRY_TYPE_IR),
+                            "unique_id": None,
+                        },
+                        {
+                            "subentry_type": SUBENTRY_TYPE_GATEWAY,
+                            "data": {},
+                            "title": category_label(self.hass, SUBENTRY_TYPE_GATEWAY),
+                            "unique_id": None,
+                        },
+                    ],
                 )
 
         _LOGGER.info("[discover] Final check — discovered_gateways=%s, len=%d", dict(discovered), len(discovered))
@@ -510,3 +543,125 @@ class MyIROptionsFlowHandler(config_entries.OptionsFlow):
 
         _LOGGER.info("Successfully mounted IR device: %s (%d keys)", device_name, len(commands))
         return self.async_create_entry(title=f"Mounted: {device_name}", data={})
+
+
+# ====================== 子条目流程（原 RosCard 卡片 → 集成页面单独添加） ======================
+
+_TV_REQUIRED_FIELDS = ("devices", "remote_entities", "select_entities")
+
+
+def _validate_card_data(subentry_type: str, role: str, data: dict) -> str | None:
+    """表单无法表达的跨字段校验，返回错误 key 或 None"""
+    if subentry_type == CARD_TV and role == "user":
+        # TV 卡片至少要绑定一个控制来源
+        if not any(data.get(f) for f in _TV_REQUIRED_FIELDS):
+            return "no_entities"
+    return None
+
+
+class CardSubentryFlowHandler(ConfigSubentryFlow):
+    """卡片子条目流程基类
+
+    每个子条目 = 远端 UI 上的一张卡片。卡片类型在 cards.CARD_TYPES 中
+    声明自己的步骤链（如 TV: user → controls → keys），本基类按链路
+    逐步收集并合并数据，添加与重新配置共用同一套步骤。
+    """
+
+    _subentry_type: str
+
+    @property
+    def _spec(self):
+        return CARD_TYPES[self._subentry_type]
+
+    @staticmethod
+    def _role(step_id: str) -> str:
+        """步骤名 → 角色名（重新配置入口复用 user 角色的表单与校验）"""
+        return "user" if step_id == "reconfigure" else step_id
+
+    def _steps(self) -> list[str]:
+        """当前流程的完整步骤链"""
+        steps = self._spec.steps
+        if getattr(self, "_editing", False):
+            return ["reconfigure", *steps[1:]]
+        return list(steps)
+
+    async def _async_process_step(self, step_id: str, user_input: dict | None):
+        """处理链中的一个步骤：校验 → 合并 → 下一步 / 收尾"""
+        spec = self._spec
+        steps = self._steps()
+        role = self._role(step_id)
+        errors = {}
+        if user_input is not None:
+            error = _validate_card_data(self._subentry_type, role, user_input)
+            if error is None:
+                # 先移除该步骤拥有的旧字段再写入，保证清空的字段被正确删除
+                for key in OWNED_KEYS.get(role, ()):
+                    self._data.pop(key, None)
+                self._data.update(spec.merge_step(role, user_input, self._data))
+                # 添加流程：同分类已有子条目时，第一步提交后直接把设备并入，
+                # 不产生重复子条目（每个分类全局只有一个子条目）
+                if role == "user" and not getattr(self, "_editing", False):
+                    entry = self._get_entry()
+                    existing = entry.get_subentries_of_type(self._subentry_type)
+                    if existing:
+                        merged = merge_into_existing(
+                            dict(existing[0].data), self._data, self._subentry_type
+                        )
+                        self._async_update(entry, existing[0], data=merged)
+                        return self.async_abort(reason="merged_into_existing")
+                index = steps.index(step_id)
+                if index + 1 < len(steps):
+                    return await self._async_process_step(steps[index + 1], None)
+                return self._async_finish()
+            errors["base"] = error
+        schema = spec.build_schema(role, self.hass, self._data)
+        return self.async_show_form(step_id=step_id, data_schema=schema, errors=errors)
+
+    def _async_finish(self):
+        """步骤链走完：创建或更新子条目（标题自动取设备 Friendly Name）"""
+        spec = self._spec
+        title = spec.build_title(self.hass, self._data)
+        if getattr(self, "_editing", False):
+            self._async_update(
+                self._get_entry(),
+                self._subentry,
+                data=self._data,
+                title=title,
+            )
+            return self.async_abort(reason="reconfigure_successful")
+        return self.async_create_entry(title=title, data=self._data)
+
+    async def async_step_user(self, user_input: dict | None = None):
+        """集成页面「添加子条目」— 步骤链入口"""
+        self._data = {}
+        return await self._async_process_step("user", user_input)
+
+    async def async_step_controls(self, user_input: dict | None = None):
+        """TV 卡片第二步：电源 / 音量 / 媒体按键 / select 选项绑定"""
+        return await self._async_process_step("controls", user_input)
+
+    async def async_step_keys(self, user_input: dict | None = None):
+        """TV 卡片第三步：F4-F11 物理按键绑定"""
+        return await self._async_process_step("keys", user_input)
+
+    async def async_step_reconfigure(self, user_input: dict | None = None):
+        """集成页面子条目上的「重新配置」— 复用步骤链，从已有数据回填"""
+        self._editing = True
+        self._subentry = self._get_reconfigure_subentry()
+        self._data = dict(self._subentry.data)
+        return await self._async_process_step("reconfigure", user_input)
+
+
+def _make_card_subentry_class(subentry_type: str) -> type[CardSubentryFlowHandler]:
+    """为每种卡片类型生成对应的子条目流程类"""
+    return type(
+        f"{subentry_type.capitalize()}CardSubentryFlowHandler",
+        (CardSubentryFlowHandler,),
+        {"_subentry_type": subentry_type},
+    )
+
+
+SUBENTRY_HANDLERS: dict[str, type[ConfigSubentryFlow]] = {
+    subentry_type: _make_card_subentry_class(subentry_type)
+    for subentry_type in CARD_TYPES
+}
