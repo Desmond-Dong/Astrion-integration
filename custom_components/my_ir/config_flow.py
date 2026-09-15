@@ -139,6 +139,7 @@ class MyIRConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
 
             # 未发现网关：不阻塞，直接继续创建条目（仅分类管理）
+            # 注意：translations 里该步骤描述含 {count}，必须始终提供占位符
             return self.async_show_form(
                 step_id="discover",
                 data_schema=vol.Schema({
@@ -146,6 +147,7 @@ class MyIRConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         selector.BooleanSelectorConfig()
                     )
                 }),
+                description_placeholders={"count": "0"},
             )
 
         skip = bool(
@@ -285,6 +287,7 @@ class MyIROptionsFlowHandler(config_entries.OptionsFlow):
                         selector.SelectSelectorConfig(options=options, mode="list")
                     )
                 }),
+                description_placeholders={"count": str(len(discovered))},
             )
 
         selected = user_input.get("gateway")
