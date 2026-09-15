@@ -1,6 +1,9 @@
 DOMAIN = "astrion"
 NAME = "Astrion Remote"
 
+# 添加集成时选择的对话代理（Conversation Agent）
+CONF_CONVERSATION_AGENT = "conversation_agent"
+
 # Harmony Hub 配置文件搜索模式
 HARMONY_CONF_PATTERN = "harmony_*.conf"
 

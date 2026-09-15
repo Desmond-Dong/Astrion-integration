@@ -4,7 +4,7 @@ from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.core import callback
 import voluptuous as vol
-from .const import DOMAIN
+from .const import DOMAIN, CONF_CONVERSATION_AGENT
 from .cards import (
     CARD_TV,
     CARD_TYPES,
@@ -25,6 +25,31 @@ _LOGGER = logging.getLogger(__name__)
 API_BASE_URL = "https://astrion.lifex360.com/api/v1"
 # 按键控制，喇叭播放，电量，屏幕唤醒集成到HA中，在
 
+
+async def _get_preferred_agent_id(hass) -> str:
+    """取当前 Assist 管线偏好的对话代理（assist_pipeline 未加载时返回空）"""
+    try:
+        from homeassistant.components.assist_pipeline.pipeline import async_get_pipeline
+
+        pipeline = async_get_pipeline(hass)
+        return pipeline.conversation_engine if isinstance(pipeline.conversation_engine, str) else ""
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.debug("Unable to resolve preferred assist pipeline: %r", err)
+        return ""
+
+
+def _agent_schema(hass, default_agent: str) -> vol.Schema:
+    """对话代理选择表单（与 cn_im_hub 相同的交互）"""
+    return vol.Schema(
+        {
+            vol.Required(
+                CONF_CONVERSATION_AGENT, default=default_agent
+            ): selector.ConversationAgentSelector(
+                selector.ConversationAgentSelectorConfig(language=hass.config.language)
+            )
+        }
+    )
+
 class MyIRConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """配置流程 (首次添加集成网关时触发)"""
     VERSION = 1
@@ -44,8 +69,11 @@ class MyIRConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return SUBENTRY_HANDLERS
 
     async def async_step_user(self, user_input: dict | None = None) -> FlowResult:
-        """点击集成名称即发送配对请求，无需中间表单"""
-        
+        """添加集成：先选择一个对话代理（Conversation Agent），选完直接创建条目
+
+        不强制先配对网关——创建的条目即可管理分类与设备；
+        网关配对在需要时通过条目的「配置」按钮进行。
+        """
         # 【关键】确保 WebSocket 处理器已注册（async_setup 可能未被调用）
         from homeassistant.components import websocket_api
         from . import websocket_submit_pair_data, websocket_get_device_codes, websocket_get_harmony_config
@@ -53,30 +81,28 @@ class MyIRConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         websocket_api.async_register_command(self.hass, websocket_get_device_codes)
         websocket_api.async_register_command(self.hass, websocket_get_harmony_config)
         _LOGGER.info("[config_flow] WebSocket handler registered during config flow")
-        
-        # 开始新配对前，清理上次残留的发现列表
-        self.hass.data.setdefault(DOMAIN, {}).pop("discovered_gateways", None)
-        
-        # 直接发出配对广播
-        self.hass.bus.async_fire(f"{DOMAIN}/pair_request", {
-            "code": "DISCOVER_ALL",
-            "mode": "discover_all",
-            "timestamp": datetime.utcnow().isoformat(),
-            "source": "config_flow"
-        })
-        _LOGGER.info(
-            "[Pair] Broadcast pair_request event (%s/pair_request), waiting 8s for App response… "
-            "Please ensure App is logged in and connected to HA via WebSocket", DOMAIN
+
+        preferred_agent = await _get_preferred_agent_id(self.hass)
+        if user_input is None:
+            return self.async_show_form(
+                step_id="user",
+                data_schema=_agent_schema(self.hass, preferred_agent),
+            )
+
+        agent_id = str(user_input.get(CONF_CONVERSATION_AGENT, "")).strip()
+        if not agent_id:
+            return self.async_show_form(
+                step_id="user",
+                data_schema=_agent_schema(self.hass, preferred_agent),
+                errors={"base": "agent_id_required"},
+            )
+
+        # 直接创建：不强制配对网关，记录所选对话代理
+        _LOGGER.info("[config_flow] Standalone entry created (no gateway pairing), agent=%s", agent_id)
+        return self.async_create_entry(
+            title="Astrion Home",
+            data={CONF_CONVERSATION_AGENT: agent_id},
         )
-        
-        # 等待 8 秒让 App 响应
-        await asyncio.sleep(8)
-        
-        discovered = self.hass.data.get(DOMAIN, {}).get("discovered_gateways", {})
-        _LOGGER.info("Discovered %d gateways after 5s: %s", len(discovered), list(discovered.keys()))
-        
-        # 进入发现步骤
-        return await self.async_step_discover()
 
     async def async_step_discover(self, user_input: dict | None = None) -> FlowResult:
         """显示已发现的网关列表，或重试搜索"""
@@ -206,6 +232,7 @@ class MyIROptionsFlowHandler(config_entries.OptionsFlow):
     """API驱动的新设备添加流程（不需要头认证）"""
 
     def __init__(self, config_entry: config_entries.ConfigEntry):
+        self._config_entry = config_entry
         # 步骤1: 库
         self._depot_id = None
         self._depot_name = None
@@ -261,9 +288,54 @@ class MyIROptionsFlowHandler(config_entries.OptionsFlow):
     # ------------------------------------------------------------------
 
     async def async_step_init(self, user_input=None) -> FlowResult:
-        """点击配置按钮后触发"""
+        """点击配置按钮后触发：未配对网关时先补配对，否则进入红外库"""
         if not self.config_entry.data.get("app_serial"):
-            return self.async_abort(reason="not_paired_yet")
+            return await self.async_step_pair_gateway()
+        return await self.async_step_depot()
+
+    # ------------------------------------------------------------------
+    #  补配网关：为「直接创建」的条目在需要红外功能时配对网关
+    # ------------------------------------------------------------------
+
+    async def async_step_pair_gateway(self, user_input=None) -> FlowResult:
+        """广播发现网关 → 选择 → 写入 app_serial → 进入红外库"""
+        if user_input is None:
+            self.hass.data.setdefault(DOMAIN, {}).pop("discovered_gateways", None)
+            self.hass.bus.async_fire(f"{DOMAIN}/pair_request", {
+                "code": "DISCOVER_ALL",
+                "mode": "discover_all",
+                "timestamp": datetime.utcnow().isoformat(),
+                "source": "options_flow"
+            })
+            _LOGGER.info("[Pair] Broadcast pair_request from options flow, waiting 8s…")
+            await asyncio.sleep(8)
+            discovered = self.hass.data.get(DOMAIN, {}).get("discovered_gateways", {})
+            if not discovered:
+                return self.async_abort(reason="no_gateway_found")
+            self._pair_map = discovered
+            options = [
+                {"value": s, "label": f"Smart Remote:{d.get('model', 'IR Gateway')} SN:{s}"}
+                for s, d in discovered.items()
+            ]
+            return self.async_show_form(
+                step_id="pair_gateway",
+                data_schema=vol.Schema({
+                    vol.Required("gateway"): selector.SelectSelector(
+                        selector.SelectSelectorConfig(options=options, mode="list")
+                    )
+                }),
+            )
+
+        selected = user_input.get("gateway")
+        if not selected or selected not in self._pair_map:
+            return await self.async_step_pair_gateway()
+
+        gw = self._pair_map[selected]
+        new_data = dict(self.config_entry.data)
+        new_data["app_serial"] = selected
+        new_data["app_model"] = gw.get("model", "IR Gateway")
+        self.hass.config_entries.async_update_entry(self.config_entry, data=new_data)
+        _LOGGER.info("[Pair] Gateway %s paired to existing entry via options flow", selected)
         return await self.async_step_depot()
 
     # ------------------------------------------------------------------

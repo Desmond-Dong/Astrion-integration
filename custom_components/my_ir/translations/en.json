@@ -1,6 +1,16 @@
 {
   "config": {
     "step": {
+      "user": {
+        "title": "Add Astrion Home",
+        "description": "Select a conversation agent to create the entry. Gateway pairing can be done later via the entry's Configure button.",
+        "data": {
+          "conversation_agent": "Conversation agent"
+        },
+        "errors": {
+          "agent_id_required": "Please select a conversation agent."
+        }
+      },
       "discover": {
         "title": "Select Gateway to Pair",
         "description": "Found {count} gateway(s), please select one to pair:"
@@ -13,12 +23,18 @@
     "abort": {
       "single_instance_allowed": "There is already a My IR Remote integration.\n\nPlease use the existing instance, no need to add another.",
       "pair_initiated": "Pairing request sent!\n\nAll online Smart Remote Apps will automatically report back.",
-      "cloud_fetch_failed": "Unable to connect to the IR driver API. Please check your network or service status.",
-      "not_paired_yet": "Gateway not ready!\n\nMake sure your remote has been paired first, then add IR sub-devices for this gateway."
+      "cloud_fetch_failed": "Unable to connect to the IR driver API. Please check your network or service status."
     }
   },
   "options": {
     "step": {
+      "pair_gateway": {
+        "title": "Pair gateway",
+        "description": "Found {count} gateway(s), select one to pair:",
+        "data": {
+          "gateway": "Gateway"
+        }
+      },
       "depot": {
         "title": "Select IR Library",
         "description": "Please select the IR library for the device you want to add"
@@ -38,8 +54,8 @@
     },
     "abort": {
       "cloud_fetch_failed": "Unable to connect to the IR driver API. Please check your network or service status.",
-      "not_paired_yet": "Gateway not ready!\n\nMake sure your remote has been paired first, then add IR sub-devices for this gateway.",
-      "no_drives_found": "No matching drivers found. Please go back and change library/device type/brand."
+      "no_drives_found": "No matching drivers found. Please go back and change library/device type/brand.",
+      "no_gateway_found": "No gateway found…\n\nMake sure your remote is logged into HA and on the same LAN, then try again."
     }
   },
   "config_subentries": {

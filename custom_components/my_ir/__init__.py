@@ -611,6 +611,7 @@ async def websocket_get_cards(hass: HomeAssistant, connection, msg):
                 "subentry_id": subentry.subentry_id,
                 "card_type": subentry.subentry_type,
                 "title": subentry.title,
+                "conversation_agent": entry.data.get("conversation_agent"),
                 "config": config,
             }
             # 分类下的设备 → 解析为该分类域的实体，App 可直接渲染
@@ -719,6 +720,10 @@ def _async_ensure_ir_subentry(hass: HomeAssistant, entry: ConfigEntry) -> str | 
     """
     from .cards import SUBENTRY_TYPE_IR, category_label
 
+    # 无网关的独立条目不建红外分组（没有可归属的红外设备）
+    if not entry.data.get("app_serial"):
+        return None
+
     for subentry in entry.subentries.values():
         if subentry.subentry_type == SUBENTRY_TYPE_IR:
             return subentry.subentry_id
@@ -767,6 +772,10 @@ def _async_ensure_gateway_subentry(hass: HomeAssistant, entry: ConfigEntry) -> s
     归组后用户能在集成页面直接找到它们。
     """
     from .cards import SUBENTRY_TYPE_GATEWAY, category_label
+
+    # 无网关的独立条目没有网关设备，不建网关分组
+    if not entry.data.get("app_serial"):
+        return None
 
     for subentry in entry.subentries.values():
         if subentry.subentry_type == SUBENTRY_TYPE_GATEWAY:

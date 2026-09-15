@@ -107,7 +107,8 @@ APK 拉取分类列表（含解析好的实体列表）→ 本地渲染 UI
 | `cards[].entry_id` | string | 所属 Astrion 网关条目 ID（多网关区分用） |
 | `cards[].subentry_id` | string | 分类子条目 ID（重新配置/删除定位用，APK 一般不用） |
 | `cards[].card_type` | string | 分类类型，见下表 |
-| `cards[].title` | string | **分类显示名**。集成自动生成：单设备 = 设备 Friendly Name（用户改名优先）；多设备 = 前 3 个名称拼接 + `…`。直接显示，不要再拼"卡片"等后缀 |
+| `cards[].title` | string | **分类显示名** = 分类名（如「灯光」/ "Light"）。直接显示即可 |
+| `cards[].conversation_agent` | string \| null | 添加集成时用户选择的对话代理（conversation agent 的 entity_id 或 `conversation.home_assistant`），语音/Assistant 相关功能使用 |
 | `cards[].config` | object | 分类原始配置，结构按 card_type 见 §4 / §5 |
 | `cards[].entities` | string[] | **仅当分类绑定了设备时出现**：集成已把设备解析为该分类对应域的实体 ID 列表，APK 直接拿来渲染和调用服务。场景/天气/主机分类没有此字段（实体直接在 `config.entities` 里） |
 
