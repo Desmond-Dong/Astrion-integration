@@ -12,12 +12,13 @@
         }
       },
       "discover": {
-        "title": "Select Gateway to Pair",
-        "description": "Found {count} gateway(s), please select one to pair:"
-      },
-      "discover_retry": {
-        "title": "Retry Discovery",
-        "description": "No gateway found…\n\nMake sure your remote is logged into HA and on the same LAN.\nCheck \"Retry\" and submit to broadcast again and wait 8 seconds."
+        "title": "Discovered gateways",
+        "description": "Found {count} gateway(s). Select one to pair, or check \"skip pairing\" to create a categories-only entry.",
+        "data": {
+          "gateway": "Gateway to pair",
+          "skip_pairing": "Skip pairing, create a categories-only entry",
+          "continue_without_gateway": "No gateway found — continue without pairing"
+        }
       }
     },
     "abort": {

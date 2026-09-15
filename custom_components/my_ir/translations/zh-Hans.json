@@ -12,12 +12,13 @@
         }
       },
       "discover": {
-        "title": "选择要配对的网关",
-        "description": "发现 {count} 个网关，请选择要配对的设备："
-      },
-      "discover_retry": {
-        "title": "重试搜索",
-        "description": "未搜索到网关…\n\n请确保您的遥控器已登录 HA 并连接在同一局域网。\n勾选「重新搜索」后点击提交，将再次广播并等待 8 秒。"
+        "title": "发现网关",
+        "description": "发现 {count} 个网关。选择要配对的设备，或勾选「跳过配对」仅创建分类条目。",
+        "data": {
+          "gateway": "要配对的网关",
+          "skip_pairing": "跳过配对，仅创建分类条目",
+          "continue_without_gateway": "未发现网关，直接继续创建"
+        }
       }
     },
     "abort": {

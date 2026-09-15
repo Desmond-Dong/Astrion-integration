@@ -69,10 +69,10 @@ class MyIRConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return SUBENTRY_HANDLERS
 
     async def async_step_user(self, user_input: dict | None = None) -> FlowResult:
-        """添加集成：先选择一个对话代理（Conversation Agent），选完直接创建条目
+        """添加集成：先选择一个对话代理（Conversation Agent），随后自动搜索网关
 
-        不强制先配对网关——创建的条目即可管理分类与设备；
-        网关配对在需要时通过条目的「配置」按钮进行。
+        网关发现后可选配对，也可跳过——不强制先配对网关；
+        未发现网关时同样可以直接创建条目（仅分类管理）。
         """
         # 【关键】确保 WebSocket 处理器已注册（async_setup 可能未被调用）
         from homeassistant.components import websocket_api
@@ -96,135 +96,96 @@ class MyIRConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 data_schema=_agent_schema(self.hass, preferred_agent),
                 errors={"base": "agent_id_required"},
             )
+        self._conversation_agent = agent_id
 
-        # 直接创建：不强制配对网关，记录所选对话代理
-        _LOGGER.info("[config_flow] Standalone entry created (no gateway pairing), agent=%s", agent_id)
-        return self.async_create_entry(
-            title="Astrion Home",
-            data={CONF_CONVERSATION_AGENT: agent_id},
+        # 广播发现网关（8 秒窗口）。发现与否都不阻塞：
+        # 有网关 → 可选配对或跳过；无网关 → 直接创建条目
+        self.hass.data.setdefault(DOMAIN, {}).pop("discovered_gateways", None)
+        self.hass.bus.async_fire(f"{DOMAIN}/pair_request", {
+            "code": "DISCOVER_ALL",
+            "mode": "discover_all",
+            "timestamp": datetime.utcnow().isoformat(),
+            "source": "config_flow"
+        })
+        _LOGGER.info(
+            "[Pair] Broadcast pair_request event (%s/pair_request), waiting 8s for App response… "
+            "Please ensure App is logged in and connected to HA via WebSocket", DOMAIN
         )
+        await asyncio.sleep(8)
+        return await self.async_step_discover()
 
     async def async_step_discover(self, user_input: dict | None = None) -> FlowResult:
-        """显示已发现的网关列表，或重试搜索"""
+        """展示发现的网关：选择配对，或跳过仅创建分类条目"""
         discovered = self.hass.data.get(DOMAIN, {}).get("discovered_gateways", {})
+        _LOGGER.info("[discover] discovered_gateways=%s", list(discovered.keys()))
 
-        if user_input is not None:
-            selected_serial = user_input.get("gateway")
-            if selected_serial and selected_serial in discovered:
-                gw_data = discovered[selected_serial]
-                model = gw_data.get("model", "IR Gateway")
-                # 创建条目，填入 App 信息；同时创建默认「红外」「网关」子条目，
-                # 让所有设备从一开始就有归组分
-                return self.async_create_entry(
-                    title=f"Smart Remote:{model} SN:{selected_serial}",
-                    data={
-                        "app_serial": selected_serial,
-                        "app_model": model
-                    },
-                    subentries=[
-                        {
-                            "subentry_type": SUBENTRY_TYPE_IR,
-                            "data": {},
-                            "title": category_label(self.hass, SUBENTRY_TYPE_IR),
-                            "unique_id": None,
-                        },
-                        {
-                            "subentry_type": SUBENTRY_TYPE_GATEWAY,
-                            "data": {},
-                            "title": category_label(self.hass, SUBENTRY_TYPE_GATEWAY),
-                            "unique_id": None,
-                        },
-                    ],
-                )
-
-        _LOGGER.info("[discover] Final check — discovered_gateways=%s, len=%d", dict(discovered), len(discovered))
-        
-        # 检查是否有发现的网关
-        if discovered:
-            _LOGGER.info("[discover] Gateways found! Showing selection list, count=%d", len(discovered))
-            options = [
-                {"value": s, "label": f"Smart Remote:{d.get('model','IR Gateway')} SN:{s}"}
-                for s, d in discovered.items()
-            ]
-            return self.async_show_form(
-                step_id="discover",
-                data_schema=vol.Schema({
-                    vol.Required("gateway"): selector.SelectSelector(
-                        selector.SelectSelectorConfig(options=options, mode="list")
-                    )
-                }),
-                description_placeholders={
-                    "count": str(len(discovered))
-                }
-            )
-        else:
-            _LOGGER.info("[discover] No gateways found, showing retry screen")
-            # 无发现，显示重试界面
-            return self.async_show_form(
-                step_id="discover_retry",
-                data_schema=vol.Schema({
-                    vol.Optional("retry", default=False): selector.BooleanSelector(
-                        selector.BooleanSelectorConfig()
-                    )
-                })
-            )
-
-    async def async_step_discover_retry(self, user_input: dict | None = None) -> FlowResult:
-        """处理重试表单的提交——重新广播发现"""
         if user_input is None:
-            return self.async_show_form(
-                step_id="discover_retry",
-                data_schema=vol.Schema({
-                    vol.Optional("retry", default=False): selector.BooleanSelector(
-                        selector.BooleanSelectorConfig()
-                    )
-                })
-            )
-
-        if user_input.get("retry"):
-            self.hass.bus.async_fire(f"{DOMAIN}/pair_request", {
-                "code": "DISCOVER_ALL",
-                "mode": "discover_all",
-                "timestamp": datetime.utcnow().isoformat(),
-                "source": "config_flow"
-            })
-            _LOGGER.info("[Retry] User requested re-discovery, waiting 8s…")
-            await asyncio.sleep(8)
-
-            discovered = self.hass.data.get(DOMAIN, {}).get("discovered_gateways", {})
-            _LOGGER.info("[Retry] Discovered %d gateways", len(discovered))
-
             if discovered:
                 options = [
-                    {"value": s, "label": f"Smart Remote:{d.get('model','IR Gateway')} SN:{s}"}
+                    {"value": s, "label": f"Smart Remote:{d.get('model', 'IR Gateway')} SN:{s}"}
                     for s, d in discovered.items()
                 ]
                 return self.async_show_form(
                     step_id="discover",
                     data_schema=vol.Schema({
-                        vol.Required("gateway"): selector.SelectSelector(
+                        vol.Optional("gateway"): selector.SelectSelector(
                             selector.SelectSelectorConfig(options=options, mode="list")
-                        )
+                        ),
+                        vol.Required("skip_pairing", default=False): selector.BooleanSelector(
+                            selector.BooleanSelectorConfig()
+                        ),
                     }),
-                    description_placeholders={
-                        "count": str(len(discovered))
-                    }
+                    description_placeholders={"count": str(len(discovered))},
                 )
 
-        # 仍然无发现，或用户未勾选重试——再次显示重试界面
-        if not user_input.get("retry"):
-            _LOGGER.info("[Retry] User did not check 'Retry', staying on retry screen")
-        else:
-            _LOGGER.warning("[Retry] No gateways found after retry, please check if App is online")
+            # 未发现网关：不阻塞，直接继续创建条目（仅分类管理）
+            return self.async_show_form(
+                step_id="discover",
+                data_schema=vol.Schema({
+                    vol.Required("continue_without_gateway", default=True): selector.BooleanSelector(
+                        selector.BooleanSelectorConfig()
+                    )
+                }),
+            )
 
-        return self.async_show_form(
-            step_id="discover_retry",
-            data_schema=vol.Schema({
-                vol.Optional("retry", default=False): selector.BooleanSelector(
-                    selector.BooleanSelectorConfig()
-                )
-            })
+        skip = bool(
+            user_input.get("skip_pairing")
+            or user_input.get("continue_without_gateway")
         )
+        gateway = user_input.get("gateway")
+
+        data = {CONF_CONVERSATION_AGENT: self._conversation_agent}
+        subentries = None
+
+        if not skip and gateway and gateway in discovered:
+            # 配对网关：条目带 app_serial，并随建默认「红外」「网关」子条目
+            model = discovered[gateway].get("model", "IR Gateway")
+            data["app_serial"] = gateway
+            data["app_model"] = model
+            subentries = [
+                {
+                    "subentry_type": SUBENTRY_TYPE_IR,
+                    "data": {},
+                    "title": category_label(self.hass, SUBENTRY_TYPE_IR),
+                    "unique_id": None,
+                },
+                {
+                    "subentry_type": SUBENTRY_TYPE_GATEWAY,
+                    "data": {},
+                    "title": category_label(self.hass, SUBENTRY_TYPE_GATEWAY),
+                    "unique_id": None,
+                },
+            ]
+            return self.async_create_entry(
+                title=f"Smart Remote:{model} SN:{gateway}",
+                data=data,
+                subentries=subentries,
+            )
+
+        # 跳过配对 / 未选网关：仅创建分类条目
+        _LOGGER.info("[config_flow] Entry created without gateway pairing, agent=%s",
+                     self._conversation_agent)
+        return self.async_create_entry(title="Astrion Home", data=data)
 
 
 # ====================== 选项流 (点击“配置”按钮后触发) ======================

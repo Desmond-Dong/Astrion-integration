@@ -169,7 +169,7 @@ Select category
 Select devices
 ```
 
-The add flow first asks you to select a **conversation agent** (defaulting to your Assist pipeline's preferred agent) and creates the entry immediately — no gateway pairing is required up front. Gateway pairing remains available anytime via the entry's **Configure** button when you want to use IR devices.
+The add flow first asks you to select a **conversation agent** (defaulting to your Assist pipeline's preferred agent), then automatically searches for gateways. If gateways are found you can pair one — or skip pairing and create a categories-only entry; if none are found the entry is created directly. Gateway pairing also remains available anytime via the entry's **Configure** button when you want to use IR devices.
 
 Each category has exactly **one** subentry per gateway. Adding the same category again simply merges the newly selected devices into the existing one — devices can also be added or removed anytime via the subentry's *Reconfigure* option. The subentry is named after the category (e.g. *Light*, *TV*), and every device added to it is registered as a real Home Assistant device under the Astrion integration — linked to the gateway and grouped under its category subentry, so the whole remote configuration is visible and manageable from the devices & services page.
 
