@@ -232,6 +232,8 @@ OWNED_KEYS: dict[str, frozenset[str]] = {
             "remote_entities",
             "select_entities",
             "background_path",
+            "hide_name",
+            "hide_icon",
             "curtain_type",
             "mode",
             "text_color",
@@ -350,6 +352,12 @@ def _tv_schema_user(role: str, hass, data: dict[str, Any]) -> vol.Schema:
             vol.Optional(
                 "background_path", **_suggested(data.get("background_path"))
             ): selector.TextSelector(),
+            vol.Optional(
+                "hide_name", default=False, **_suggested(data.get("hide_name"))
+            ): selector.BooleanSelector(),
+            vol.Optional(
+                "hide_icon", default=False, **_suggested(data.get("hide_icon"))
+            ): selector.BooleanSelector(),
         }
     )
 

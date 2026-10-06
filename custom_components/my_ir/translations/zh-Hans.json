@@ -81,7 +81,9 @@
             "remote_version": "遥控器硬件版本",
             "remote_entities": "红外遥控器实体（可选，可多选）",
             "select_entities": "选择器实体（可选，可多选）",
-            "background_path": "背景图片地址（可选）"
+            "background_path": "背景图片地址（可选）",
+            "hide_name": "面板卡片隐藏设备名称",
+            "hide_icon": "面板卡片隐藏设备图标"
           },
           "errors": {
             "no_entities": "请至少选择一个控制来源：媒体播放器、红外遥控器或选择器实体。"
@@ -96,7 +98,9 @@
             "remote_version": "遥控器硬件版本",
             "remote_entities": "红外遥控器实体（可选，可多选）",
             "select_entities": "选择器实体（可选，可多选）",
-            "background_path": "背景图片地址（可选）"
+            "background_path": "背景图片地址（可选）",
+            "hide_name": "面板卡片隐藏设备名称",
+            "hide_icon": "面板卡片隐藏设备图标"
           },
           "errors": {
             "no_entities": "请至少选择一个控制来源：媒体播放器、红外遥控器或选择器实体。"
